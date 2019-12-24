@@ -39,8 +39,7 @@ include(GNUInstallDirs)
 option(PNG_BUILD_ZLIB "Custom zlib Location, else find_package is used" OFF)
 
 if(NOT PNG_BUILD_ZLIB)
-  find_package(ZLIB REQUIRED)
-  include_directories(${ZLIB_INCLUDE_DIR})
+  find_package(ZLIB REQUIRED NO_MODULE)
 endif()
 
 if(UNIX AND NOT APPLE AND NOT BEOS AND NOT HAIKU)
@@ -522,7 +521,7 @@ if(PNG_DEBUG)
 endif()
 
 # NOW BUILD OUR TARGET
-include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${ZLIB_INCLUDE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 unset(PNG_LIB_TARGETS)
 
@@ -536,7 +535,7 @@ if(PNG_SHARED)
     set_target_properties(png PROPERTIES PREFIX "lib")
     set_target_properties(png PROPERTIES IMPORT_PREFIX "lib")
   endif()
-  target_link_libraries(png ${ZLIB_LIBRARY} ${M_LIBRARY})
+  target_link_libraries(png zlib::zlib ${M_LIBRARY})
 
   if(UNIX AND AWK)
     if(HAVE_LD_VERSION_SCRIPT)
@@ -571,7 +570,7 @@ if(PNG_STATIC)
     # msvc does not append 'lib' - do it here to have consistent name
     set_target_properties(png_static PROPERTIES PREFIX "lib")
   endif()
-  target_link_libraries(png_static ${ZLIB_LIBRARY} ${M_LIBRARY})
+  target_link_libraries(png_static PUBLIC zlib::zlibstatic ${M_LIBRARY})
 endif()
 
 if(PNG_FRAMEWORK)
@@ -753,7 +752,7 @@ if(PNG_SHARED)
   set(PNG_BIN_TARGETS pngfix)
 
   add_executable(png-fix-itxt ${png_fix_itxt_sources})
-  target_link_libraries(png-fix-itxt ${ZLIB_LIBRARY} ${M_LIBRARY})
+  target_link_libraries(png-fix-itxt zlib::zlibstatic ${M_LIBRARY})
   list(APPEND PNG_BIN_TARGETS png-fix-itxt)
 endif()
 
@@ -845,6 +844,14 @@ if(PNG_SHARED)
 endif()
 
 # INSTALL
+
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
+  VERSION ${PNGLIB_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
+
 if(NOT SKIP_INSTALL_LIBRARIES AND NOT SKIP_INSTALL_ALL)
   install(TARGETS ${PNG_LIB_TARGETS}
           EXPORT libpng
@@ -898,8 +905,8 @@ if(NOT SKIP_INSTALL_FILES AND NOT SKIP_INSTALL_ALL)
   if(NOT PNG_MAN_DIR)
     set(PNG_MAN_DIR "share/man")
   endif()
-  install(FILES libpng.3 libpngpf.3 DESTINATION ${PNG_MAN_DIR}/man3)
-  install(FILES png.5 DESTINATION ${PNG_MAN_DIR}/man5)
+  # install(FILES libpng.3 libpngpf.3 DESTINATION ${PNG_MAN_DIR}/man3)
+  # install(FILES png.5 DESTINATION ${PNG_MAN_DIR}/man5)
   # Install pkg-config files
   if(NOT CMAKE_HOST_WIN32 OR CYGWIN OR MINGW)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libpng.pc
@@ -915,7 +922,17 @@ endif()
 
 # Create an export file that CMake users can include() to import our targets.
 if(NOT SKIP_INSTALL_EXPORT AND NOT SKIP_INSTALL_ALL)
-  install(EXPORT libpng DESTINATION lib/libpng FILE lib${PNG_LIB_NAME}.cmake)
+  install(EXPORT libpng
+    NAMESPACE libpng::
+    DESTINATION lib/cmake/libpng
+    FILE lib${PNG_LIB_NAME}.cmake
+  )
+  install(FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}-config.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
+    DESTINATION
+      lib/cmake/${PROJECT_NAME}
+  )
 endif()
 
 # what's with libpng-manual.txt and all the extra files?
